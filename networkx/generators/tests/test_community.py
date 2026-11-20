@@ -375,3 +375,45 @@ def test_generate_min_degree_itr():
         nx.ExceededMaxIterations, match="Could not match average_degree"
     ):
         nx.generators.community._generate_min_degree(2, 2, 1, 0.01, 0)
+
+
+def test_lfr_in_community_degree_preserved():
+    # Regression test for gh-6762: ensure every node gets at least its
+    # target internal degree even when external edges are also present.
+    mu = 0.5
+    min_degree = 6
+    G = nx.LFR_benchmark_graph(
+        n=100,
+        tau1=3,
+        tau2=1.5,
+        mu=mu,
+        min_degree=min_degree,
+        max_degree=20,
+        min_community=15,
+        max_community=30,
+        seed=42,
+    )
+    assert nx.number_of_selfloops(G) == 0
+    min_expected_internal = round(min_degree * (1 - mu))
+    for u in G:
+        comm = G.nodes[u]["community"]
+        internal_deg = len(G._adj[u].keys() & comm)
+        assert internal_deg >= min_expected_internal
+
+
+def test_lfr_insufficient_external_nodes_raises():
+    # Regression test for gh-6763: raise instead of entering an infinite loop
+    # when required external edges exceed available out-community nodes.
+    with pytest.raises(
+        nx.ExceededMaxIterations,
+        match="Could not add edges; try decreasing max_degree",
+    ):
+        nx.LFR_benchmark_graph(
+            n=100,
+            tau1=2,
+            tau2=1.5,
+            mu=0.5,
+            min_degree=10,
+            min_community=10,
+            seed=7,
+        )
